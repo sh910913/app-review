@@ -11,15 +11,12 @@ import re
 import time
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 
 USER_AGENT = "Mozilla/5.0"
 MAX_PAGES = 10
 PAGE_SIZE = 50
-_ATOM = "{http://www.w3.org/2005/Atom}"
-_IM = "{http://itunes.apple.com/rss}"
 
 _APP_ID_IN_URL = re.compile(r"/id(\d+)")
 _BARE_APP_ID = re.compile(r"\d{5,}")
@@ -136,9 +133,8 @@ def fetch_country_reviews(app_id: str, country: str, sort: str) -> CountryReview
     partial = False
     for page in range(1, MAX_PAGES + 1):
         try:
-            page_reviews = reviews_from_xml(
-                _get_text(_reviews_url(app_id, country, page, sort)),
-                country,
+            page_reviews = reviews_from_feed(
+                _get_json(_reviews_url(app_id, country, page, sort)), country
             )
         except ItunesError:
             if not collected:
@@ -247,9 +243,10 @@ def _guard(country: str, call):
 
 
 def _reviews_url(app_id: str, country: str, page: int, sort: str) -> str:
+    # The /xml form of this feed answers 403 to every request; /json still works.
     return (
         f"https://itunes.apple.com/{country}/rss/customerreviews/"
-        f"page={page}/id={app_id}/sortby={sort}/xml"
+        f"page={page}/id={app_id}/sortby={sort}/json"
     )
 
 
@@ -299,50 +296,6 @@ def _optional_int(value: object) -> int | None:
         return value
     if isinstance(value, str) and value.isdigit():
         return int(value)
-    return None
-
-
-def reviews_from_xml(text: str, country: str) -> list[Review]:
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError as error:
-        raise ItunesError("Apple returned a review feed that could not be read") from error
-    reviews: list[Review] = []
-    for entry in root.findall(f"{_ATOM}entry"):
-        rating = _optional_int(_xml_text(entry.find(f"{_IM}rating")))
-        review_id = _xml_text(entry.find(f"{_ATOM}id"))
-        title = _xml_text(entry.find(f"{_ATOM}title"))
-        content = _xml_content(entry)
-        if review_id is None or rating is None or title is None or content is None:
-            continue
-        reviews.append(
-            Review(
-                country=country,
-                id=review_id,
-                rating=rating,
-                title=title,
-                author=_xml_text(entry.find(f"{_ATOM}author/{_ATOM}name")) or "",
-                content=content,
-                version=_xml_text(entry.find(f"{_IM}version")),
-                updated=_xml_text(entry.find(f"{_ATOM}updated")),
-                vote_count=_optional_int(_xml_text(entry.find(f"{_IM}voteCount"))) or 0,
-                vote_sum=_optional_int(_xml_text(entry.find(f"{_IM}voteSum"))) or 0,
-            )
-        )
-    return reviews
-
-
-def _xml_text(node: ET.Element | None) -> str | None:
-    if node is None or node.text is None:
-        return None
-    text = node.text.strip()
-    return text or None
-
-
-def _xml_content(entry: ET.Element) -> str | None:
-    for node in entry.findall(f"{_ATOM}content"):
-        if node.attrib.get("type") == "text" and node.text:
-            return node.text
     return None
 
 

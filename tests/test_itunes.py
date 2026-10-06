@@ -8,7 +8,6 @@ from app_review.itunes import (
     metadata_from_result,
     parse_app_id,
     reviews_from_feed,
-    reviews_from_xml,
 )
 
 
@@ -79,47 +78,28 @@ class PartialPageTest(unittest.TestCase):
     def test_keeps_reviews_when_a_later_page_is_blocked(self) -> None:
         def fake_get(url: str) -> str:
             if "page=1" in url:
-                return """<?xml version="1.0"?>
-                <feed xmlns="http://www.w3.org/2005/Atom" xmlns:im="http://itunes.apple.com/rss">
-                  <entry>
-                    <id>1</id><title>ok</title>
-                    <content type="text">yes</content>
-                    <im:rating>5</im:rating>
-                  </entry>
-                </feed>"""
+                return json.dumps(
+                    {
+                        "feed": {
+                            "entry": [
+                                {
+                                    "id": {"label": "1"},
+                                    "im:rating": {"label": "5"},
+                                    "title": {"label": "ok"},
+                                    "content": {"label": "yes"},
+                                }
+                            ]
+                        }
+                    }
+                )
             raise ItunesError(f"HTTP 403 for {url}")
 
-        with patch("app_review.itunes._get_text", side_effect=fake_get):
+        with patch("app_review.itunes._get_text", side_effect=fake_get) as get:
             batch = fetch_country_reviews("99", "ee", "mostrecent")
         self.assertEqual([review.id for review in batch.reviews], ["1"])
         self.assertTrue(batch.partial)
         self.assertFalse(batch.truncated)
-
-
-class ReviewsFromXmlTest(unittest.TestCase):
-    def test_reads_text_content_and_skips_entries_without_a_rating(self) -> None:
-        text = """<?xml version="1.0"?>
-        <feed xmlns="http://www.w3.org/2005/Atom" xmlns:im="http://itunes.apple.com/rss">
-          <entry><title>the app</title></entry>
-          <entry>
-            <id>99</id>
-            <title>small buttons</title>
-            <content type="html">&lt;p&gt;ignore&lt;/p&gt;</content>
-            <content type="text">hard to tap</content>
-            <im:rating>2</im:rating>
-            <im:version>4.24</im:version>
-            <updated>2026-08-04T00:36:35-07:00</updated>
-            <im:voteCount>3</im:voteCount>
-            <im:voteSum>1</im:voteSum>
-            <author><name>ttt</name></author>
-          </entry>
-        </feed>"""
-        reviews = reviews_from_xml(text, "jp")
-        self.assertEqual(len(reviews), 1)
-        self.assertEqual(reviews[0].content, "hard to tap")
-        self.assertEqual(reviews[0].author, "ttt")
-        self.assertEqual(reviews[0].rating, 2)
-        self.assertEqual(reviews[0].vote_count, 3)
+        self.assertTrue(get.call_args_list[0].args[0].endswith("/json"))
 
 
 class MetadataTest(unittest.TestCase):
