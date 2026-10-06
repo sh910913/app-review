@@ -1,55 +1,36 @@
 # app-review
 
-Look up the public App Store reviews for any app, across countries. You do not need to own the app, and you do not need an Apple developer account.
+Read a competitor’s App Store reviews from every country, in your language.
 
-Reviews belong to the store where they were written. The same app has a separate list in Japan, the United States, Taiwan, and every other storefront. This tool checks each store, then downloads the written reviews from the stores that have ratings.
+For indie hackers, product managers, and founders gathering what customers actually wrote. A store page is one country. The same app has different reviews in Japan, the United States, Taiwan, and every other storefront. Paste one link and those reviews come back together, with a translation above the original.
 
-You need Python 3.11 or newer, and a network connection.
+A store page means changing the country code and translating by hand. Intelligence products sell download and revenue estimates. This reads the written reviews Apple already publishes.
 
-## Website
+You can see what people praise and what they keep complaining about, whether that shows up in one country or everywhere, and the phrases customers use.
 
-From this folder, start the site:
+Each country includes about the 500 most recent written reviews. Ratings with no text are left out. A country with no ratings is skipped. Estimated downloads and revenue are not in Apple’s public data.
+
+## Run it
+
+Python 3.11 or newer.
 
 ```bash
 python3 -m app_review.web
 ```
 
-Open http://127.0.0.1:8765.
-
-Paste an App Store link or a numeric app id, then choose **查看評論**. A link looks like this:
+Open http://127.0.0.1:8765. Paste an App Store link or an app id. **Try Reeder** loads a smaller example. The page follows your browser language. Choose **Original** to read each review as it was written.
 
 ```text
 https://apps.apple.com/jp/app/id443332137
 ```
 
-The number after `id` is the app id. `443332137` alone works too.
-
-The page lists the public listing Apple already publishes: icon, price, release and update dates, description, and screenshots. It also shows which countries have the ratings, and the written reviews. Estimated downloads and estimated revenue are not in Apple's public data, so this page does not show them. You can filter by country and star rating, search the text, and load more than the first page. **Try Reeder** fills in Reeder, a well-known reading app with a smaller review set, as an example.
-
-The page language follows your browser, and the same control translates the reviews. It sits in the header, beside the title, on the same column as the rest of the page. On a phone it moves under the title and spans the column. Choose **Original** to show each review in the language it was written. Translation uses Google Translate, with no API key. The original text stays under each translated review.
-
-To use another port:
+`443332137` alone works too.
 
 ```bash
 python3 -m app_review.web --port 9000
-```
-
-## Command line
-
-The same lookup can write a file instead of opening the site.
-
-```bash
-python3 -m app_review "https://apps.apple.com/jp/app/id443332137" --out reviews.json
+python3 -m app_review 443332137 --out reviews.json
 python3 -m app_review 443332137 --format csv --out reviews.csv
 python3 -m app_review 443332137 --countries jp,tw,us --out reviews.json
 ```
 
-Without `--out`, the file contents go to the terminal. Progress messages go to the error stream, so they stay out of the file.
-
-`--sort` is `mostrecent` (the default) or `mosthelpful`. `--format` is `json` or `csv`.
-
-## What you get, and what you do not
-
-Apple’s public feed returns at most 10 pages of 50 reviews per country: about the 500 most recent written reviews. Star ratings with no text are not included. Older history is only available to the app’s developer in App Store Connect.
-
-A country with zero ratings is skipped. Some apps have reviews in only one store.
+`--sort` is `mostrecent` (the default) or `mosthelpful`. Without `--out`, reviews print to the terminal and progress goes to the error stream. Translation uses Google Translate, with no API key.
